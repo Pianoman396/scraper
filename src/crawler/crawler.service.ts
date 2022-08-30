@@ -72,22 +72,22 @@ export class CrawlerService {
 
   private async crawl(url: string) {
     try {
-      console.log('Start Crawling a--: ' + url);
+      console.log('Start Crawling ---: ' + url);
       const browser = await puppeteer.launch({
-        headless: true,
+        headless: false,
         args: [
           '--disable-gpu',
-          '--disable-dev-shm-usage',
-          '--disable-setuid-sandbox',
-          '--no-first-run',
-          '--no-sandbox',
-          '--no-zygote',
-          '--deterministic-fetch',
-          '--disable-features=IsolateOrigins',
-          '--disable-site-isolation-trials',
+          //   '--disable-dev-shm-usage',
+          //   '--disable-setuid-sandbox',
+          //   '--no-first-run',
+          //   '--no-sandbox',
+          //   '--no-zygote',
+          //   '--deterministic-fetch',
+          //   '--disable-features=IsolateOrigins',
+          //   '--disable-site-isolation-trials',
           // '--single-process',
-          // '--no-sandbox',
-          // '--headless',
+          '--no-sandbox',
+          '--headless',
         ],
       });
       const page = await browser.newPage();
@@ -96,46 +96,46 @@ export class CrawlerService {
       const $ = cheerio.load(content);
       const links = [];
       let linkObjects = $('a');
-      linkObjects.each(async (index, element) => {
+      linkObjects.each((index, element) => {
         if (!$(element).attr('href').includes('#')) {
-          // this.checkLinkValidity($(element).attr('href'), url);
           let link = this.linkNormalize($(element).attr('href'), url);
+          let status = this.checkLinkValidity(link, url);
           links.push({
             _website: url,
             _link: link,
-            _statusCode: this.statusCode,
+            _statusCode: status,
           });
         }
       });
 
-      let out = setTimeout(async () => {
-        const page2 = await browser.newPage();
-        links.forEach(async (elem) => {
+      try {
+        for (let elem of links) {
           if (elem._link.includes(url) && elem !== url) {
-            page2.goto(elem._link, { waitUntil: 'networkidle2' });
-            let deepContent = await page2.content();
-            let response = await page2.waitForResponse(response => response);
-            console.log(response.status(), '<<<<<<<<<<<<<<<');
+            await page.goto(elem._link, { waitUntil: 'networkidle2' });
+            let deepContent = await page.content();
+            let response = this.checkLinkValidity(elem, url);
             const c$ = cheerio.load(deepContent);
             let linkObjectsDeep = c$('a');
             linkObjectsDeep.each((index, element) => {
               if (!$(element).attr('href').includes('#')) {
                 let deepLink = this.linkNormalize($(element).attr('href'), url);
-                if (deepLink.includes('url')) {
+                if (deepLink.includes(url)) {
                   links.push({
                     _website: url,
                     _link: deepLink,
-                    _statusCode: response.status(),
+                    _statusCode: response,
                   });
                 }
               }
             });
           }
-        });
-        clearTimeout(out);
-      }, 300);
-      console.log(links);
-      browser.close();
+        }
+      } catch (e) {
+        console.log(e, '--------------------------ERROR---------------------------');
+      }
+
+      // console.log(links);
+      await browser.close();
       return links;
     } catch (e) {
       console.log(e, '******/-/-/-/-/-/-/-******');
@@ -144,11 +144,12 @@ export class CrawlerService {
 
   private async checkLinkValidity(link, url) {
 
-    return this.httpService.axiosRef.get(await this.linkNormalize(link, url)).then((ok) => {
-      this.statusCode = ok.status;
-    }).catch((err) => {
-      this.statusCode = 404;
-    });
+    return await this.httpService.axiosRef.get(link).then(ok => ok.status).catch(err => 404);
+    //   .then((ok) => {
+    //   this.statusCode = ok.status;
+    // }).catch((err) => {
+    //   this.statusCode = 404;
+    // });
   }
 
   private linkNormalize(link, url) {
