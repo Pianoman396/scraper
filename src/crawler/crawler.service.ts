@@ -97,7 +97,7 @@ export class CrawlerService {
       const links = [];
       let linkObjects = $('a');
       linkObjects.each((index, element) => {
-        if (!$(element).attr('href').includes('#')) {
+        if ($(element).attr('href') && !$(element).attr('href').includes('#')) {
           let link = this.linkNormalize($(element).attr('href'), url);
           let status = this.checkLinkValidity(link, url);
           links.push({
@@ -117,8 +117,8 @@ export class CrawlerService {
             const c$ = cheerio.load(deepContent);
             let linkObjectsDeep = c$('a');
             linkObjectsDeep.each((index, element) => {
-              if (!$(element).attr('href').includes('#')) {
-                let deepLink = this.linkNormalize($(element).attr('href'), url);
+              if (c$(element).attr('href') && !c$(element).attr('href').includes('#')) {
+                let deepLink = this.linkNormalize(c$(element).attr('href'), url);
                 if (deepLink.includes(url)) {
                   links.push({
                     _website: url,
@@ -143,8 +143,8 @@ export class CrawlerService {
   }
 
   private async checkLinkValidity(link, url) {
-    
-    return this.httpService.axiosRef.get(link).then(ok => ok.status).catch(err => 404);
+
+    return await this.httpService.axiosRef.get(link).then(ok => ok.status).catch(err => 404);
     //   .then((ok) => {
     //   this.statusCode = ok.status;
     // }).catch((err) => {
