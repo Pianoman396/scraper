@@ -143,8 +143,8 @@ export class CrawlerService {
   }
 
   private async checkLinkValidity(link, url) {
-
-    return await this.httpService.axiosRef.get(link).then(ok => ok.status).catch(err => 404);
+    
+    return this.httpService.axiosRef.get(link).then(ok => ok.status).catch(err => 404);
     //   .then((ok) => {
     //   this.statusCode = ok.status;
     // }).catch((err) => {
