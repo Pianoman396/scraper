@@ -21,4 +21,13 @@ describe('AppController (e2e)', () => {
       .expect(200)
       .expect('Hello World!');
   });
+
+  it('Should return input objects', () => {
+    return request(app.getHttpServer())
+      .post('/domains')
+      .send({_websites: [{_website: ["https://news.ycombinator.com/"]}, {_website: ["https://techcrunch.com/"]}, {_website: ["https://techwebsite.net/"]} ]})
+      .expect(201)
+      .expect([{_website: ["https://news.ycombinator.com/"]}, {_website: ["https://techcrunch.com/"]}])
+  })
+
 });
