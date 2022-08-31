@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { dataScrapOutput } from '../interfaces/dataScrapOutput.interface';
 import type { BrowserContext, Page } from 'puppeteer';
-
-const puppeteer = require('puppeteer');
-import { InjectContext } from 'nest-puppeteer';
-import { InjectPage } from 'nest-puppeteer';
+import { Cluster } from 'puppeteer-cluster';
+import { InjectPage, InjectContext } from 'nest-puppeteer';
 import * as cheerio from 'cheerio';
 import { HttpService } from '@nestjs/axios';
+
+const request = require('request');
 
 
 @Injectable()
@@ -20,6 +20,8 @@ export class CrawlerService {
     },
   };
   public statusCode: number = 0;
+  public links: any[] = [];
+  public linksDeep: any[] = [];
 
   constructor(
     @InjectContext() private readonly browserContext: BrowserContext,
@@ -39,7 +41,7 @@ export class CrawlerService {
  * }
  * the details in dataScrapOutput interface
  * */
-  async domainScraping(domains): Promise<dataScrapOutput> {
+  async domainScraping(domains) {
     let links = [];
     for (let i = 0; i <= domains.length; i++) {
       domains[i]?._website.forEach((item) => {
@@ -47,8 +49,8 @@ export class CrawlerService {
       });
     }
     let result = await this.crawling(links);
-    console.log([].concat.apply([], result), '<><><><>');
-    return domains;
+    console.log('You\'r response is in progress <><><><>');
+    return'You\'r response is in progress <><><><>'; //[].concat.apply([], result)
   }
 
   private async crawling(websites) {
@@ -70,86 +72,75 @@ export class CrawlerService {
     });
   }
 
+  private async clusterForCrawl(url, mainUrl, deep = false) {
+
+    const cluster = await Cluster.launch({
+      concurrency: Cluster.CONCURRENCY_CONTEXT,
+      maxConcurrency: 2,
+    });
+    await cluster.task(async ({ page, data: url }) => {
+      await page.goto(url);
+      const content = await page.content();
+      const $ = cheerio.load(content);
+      let linkObjects = $('a');
+      linkObjects.each((index, element) => {
+        if (!$(element).attr('href').includes('#') && $(element).attr('href').includes(url)) {
+          let link = this.linkNormalize($(element).attr('href'), url);
+          this.checkLinkValidity(link);
+          if (this.statusCode == 0) {
+            this.checkLinkValidity(link);
+          }
+          if(deep) {
+            this.linksDeep.push({
+              _website: mainUrl,
+              _link: link,
+              _statusCode: this.statusCode,
+            });
+          } else {
+            this.links.push({
+              _website: mainUrl,
+              _link: link,
+              _statusCode: this.statusCode,
+            });
+          }
+          this.links = this.links.concat(this.linksDeep);
+          console.log([].concat.apply([], this.links), '>>>>>>>>>>>>>');
+        }
+      });
+    });
+    await cluster.queue(url);
+
+    await cluster.idle();
+    await cluster.close();
+  }
+
   private async crawl(url: string) {
     try {
       console.log('Start Crawling ---: ' + url);
-      const browser = await puppeteer.launch({
-        headless: false,
-        args: [
-          '--disable-gpu',
-          //   '--disable-dev-shm-usage',
-          //   '--disable-setuid-sandbox',
-          //   '--no-first-run',
-          //   '--no-sandbox',
-          //   '--no-zygote',
-          //   '--deterministic-fetch',
-          //   '--disable-features=IsolateOrigins',
-          //   '--disable-site-isolation-trials',
-          // '--single-process',
-          '--no-sandbox',
-          '--headless',
-        ],
-      });
-      const page = await browser.newPage();
-      await page.goto(url, { waitUntil: 'networkidle2' });
-      const content = await page.content();
-      const $ = cheerio.load(content);
-      const links = [];
-      let linkObjects = $('a');
-      linkObjects.each((index, element) => {
-        if ($(element).attr('href') && !$(element).attr('href').includes('#')) {
-          let link = this.linkNormalize($(element).attr('href'), url);
-          let status = this.checkLinkValidity(link, url);
-          links.push({
-            _website: url,
-            _link: link,
-            _statusCode: status,
-          });
-        }
-      });
+      await this.clusterForCrawl(url, url);
 
-      try {
-        for (let elem of links) {
-          if (elem._link.includes(url) && elem !== url) {
-            await page.goto(elem._link, { waitUntil: 'networkidle2' });
-            let deepContent = await page.content();
-            let response = this.checkLinkValidity(elem, url);
-            const c$ = cheerio.load(deepContent);
-            let linkObjectsDeep = c$('a');
-            linkObjectsDeep.each((index, element) => {
-              if (c$(element).attr('href') && !c$(element).attr('href').includes('#')) {
-                let deepLink = this.linkNormalize(c$(element).attr('href'), url);
-                if (deepLink.includes(url)) {
-                  links.push({
-                    _website: url,
-                    _link: deepLink,
-                    _statusCode: response,
-                  });
-                }
-              }
-            });
-          }
+      for (let item of this.links) {
+        if (item._link.includes(url) && item._link != url) {
+          await this.clusterForCrawl(item._link, url, true);
         }
-      } catch (e) {
-        console.log(e, '--------------------------ERROR---------------------------');
       }
 
-      // console.log(links);
-      await browser.close();
-      return links;
+      return this.links.concat(this.linksDeep);
     } catch (e) {
       console.log(e, '******/-/-/-/-/-/-/-******');
     }
   }
 
-  private async checkLinkValidity(link, url) {
-
-    return await this.httpService.axiosRef.get(link).then(ok => ok.status).catch(err => 404);
-    //   .then((ok) => {
-    //   this.statusCode = ok.status;
-    // }).catch((err) => {
-    //   this.statusCode = 404;
-    // });
+  private checkLinkValidity(link) {
+    request({
+        url: link,
+      },
+      (error, response, body) => {
+        if (response && !error)
+          this.statusCode = response.statusCode;
+        else
+          this.statusCode = 404;
+      });
   }
 
   private linkNormalize(link, url) {
