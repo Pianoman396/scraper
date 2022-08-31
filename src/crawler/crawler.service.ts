@@ -50,7 +50,7 @@ export class CrawlerService {
     }
     let result = await this.crawling(links);
     console.log('You\'r response is in progress <><><><>');
-    return'You\'r response is in progress <><><><>'; //[].concat.apply([], result)
+    return 'You\'r response is in progress <><><><>'; //[].concat.apply([], result)
   }
 
   private async crawling(websites) {
@@ -90,12 +90,14 @@ export class CrawlerService {
           if (this.statusCode == 0) {
             this.checkLinkValidity(link);
           }
-          if(deep) {
-            this.linksDeep.push({
-              _website: mainUrl,
-              _link: link,
-              _statusCode: this.statusCode,
-            });
+          if (deep) {
+            if (!this.links.includes(url)) {
+              this.linksDeep.push({
+                _website: mainUrl,
+                _link: link,
+                _statusCode: this.statusCode,
+              });
+            }
           } else {
             this.links.push({
               _website: mainUrl,
