@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { dataScrapOutput } from '../interfaces/dataScrapOutput.interface';
 import type { BrowserContext, Page } from 'puppeteer';
 import { Cluster } from 'puppeteer-cluster';
 import { InjectPage, InjectContext } from 'nest-puppeteer';
@@ -12,14 +11,7 @@ const request = require('request');
 @Injectable()
 export class CrawlerService {
 
-  public resultData: dataScrapOutput = {
-    _result: {
-      _website: [''],
-      _link: [''],
-      _statusCode: 200,
-    },
-  };
-  public statusCode: number = 0;
+  public statusCode: number = 200;
   public links: any[] = [];
   public linksDeep: any[] = [];
 
@@ -61,8 +53,7 @@ export class CrawlerService {
           dataResult.then((data) => {
             resolve(data);
           }).catch((error) => {
-            if (error)
-              throw new Error('Can\'t resolve crawling part');
+            throw new Error('Can\'t resolve crawling part');
           });
         });
       } catch (e) {
